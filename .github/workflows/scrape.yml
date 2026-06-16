@@ -1,0 +1,64 @@
+name: DaddyLive M3U8 Scraper
+
+on:
+  # 2 saatte bir çalıştır
+  schedule:
+    - cron: '0 */2 * * *'
+
+  # Manuel tetikleme
+  workflow_dispatch:
+
+  # Push'ta da çalıştır (ilk kurulumda test için)
+  push:
+    branches:
+      - main
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: write
+
+    steps:
+      # ── 1. Repoyu çek ──
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python kur ──
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ── 3. Chrome kur ──
+      - name: Install Google Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg2
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          google-chrome --version
+
+      # ── 4. Python bağımlılıkları ──
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── 5. Scraper'ı çalıştır ──
+      - name: Run scraper
+        run: python scraper.py
+
+      # ── 6. Sonuçları commit & push et ──
+      - name: Commit and push results
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add daddylive.m3u
+          # Değişiklik yoksa hata vermesin
+          git diff --staged --quiet || git commit -m "🔄 M3U güncellendi: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          git push
